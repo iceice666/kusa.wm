@@ -1,13 +1,35 @@
-#!/usr/bin/sh
+#!/usr/bin/env bash
+# Run an example build of penrose in an embeded Xephyr session.
+#
+# This is intended to be run via the `run-embeded` makefile target
+# which will also handle compilation of the examples themselves.
+# You will need to have the xephyr utility installed on your system
+# for this script to run:
+#   https://wiki.archlinux.org/title/Xephyr
+#
+# usage:
+#   EXAMPLE=with_layout_transformers APP=st make run-embeded
+#   
+CUR_DIR="/home/iceice666/project/kusa-wm/"
+SCREEN_SIZE=${SCREEN_SIZE:-1920x1080}
+XDISPLAY=${XDISPLAY:-:1}
+EXAMPLE=${EXAMPLE:-minimal}
+APP=${APP:-kitty}
 
-# Stop running if we hit an error
-set -e
+touch $CUR_DIR/xephyr.log
 
-# The xinit command takes a first option of a xinitrc script to run
-# and a second option of the command to start an X server.
+Xephyr +extension RANDR -screen ${SCREEN_SIZE} ${XDISPLAY} -ac &
+XEPHYR_PID=$!
 
-# Run xinit then specify Xephyr command to start a nested X server
-# with a display of 1 to use. In X11 this basically means that
-# an X server runs on localhost:1 If display 1 is in use, change it
-# to another number like 10.
-xinit /home/iceice666/.xinitrc -- $(command -v Xephyr) :1 -screen 1920x1080
+sleep 1
+env DISPLAY=${XDISPLAY} "$CUR_DIR/target/debug/examples/$EXAMPLE" 2>&1 $CUR_DIR/xephyr.log &
+WM_PID=$!
+
+trap "kill $XEPHYR_PID && kill $WM_PID && rm $CUR_DIR/xephyr.log" SIGINT SIGTERM exit
+
+env DISPLAY=${XDISPLAY} ${APP} &
+
+tail -f $CUR_DIR/xephyr.log
+
+wait $WM_PID
+kill $XEPHYR_PID
